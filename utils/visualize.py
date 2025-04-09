@@ -1,0 +1,35 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+
+def visualize_probs(probs, grid_size=8, step=None, save_path=None):
+    """
+    可视化策略输出的传输概率（heatmap）
+    probs: tensor [grid_size^2]
+    """
+    heatmap = probs.detach().cpu().view(grid_size, grid_size).numpy()
+    plt.figure(figsize=(5, 5))
+    plt.imshow(heatmap, cmap='viridis')
+    plt.title(f'Transmission Probabilities (Step {step})')
+    plt.colorbar()
+    if save_path:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+    plt.close()
+
+def visualize_cbam_attention(attn_map, step=None, save_path=None):
+    """
+    可视化 CBAM 空间注意力热图
+    attn_map: tensor [1, 1, H, W]
+    """
+    heatmap = attn_map.squeeze().detach().cpu().numpy()
+    plt.figure(figsize=(5, 5))
+    plt.imshow(heatmap, cmap='hot')
+    plt.title(f'CBAM Spatial Attention (Step {step})')
+    plt.colorbar()
+    if save_path:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+    plt.close()

@@ -1,0 +1,51 @@
+dataset:
+  name: KITTI
+  data_root: /path/to/kitti/
+  info_path: /path/to/kitti/kitti_infos_train.pkl
+  input_modality:
+    use_lidar: true
+    use_camera: true
+    use_uav_feature: true   # ✅ 启用 UAV 特征输入
+  cameras:
+    - image_2                # 仅一个视角（如需扩展模拟多个，可在 loader 内重复堆叠）
+
+model:
+  name: BEVFusion
+  voxel_encoder:
+    name: HardSimpleVFE
+    num_input_features: 4
+  middle_encoder:
+    name: SparseEncoder
+    output_shape: [128, 128]
+    base_channels: 32
+  backbone:
+    name: SECOND
+    layer_nums: [3, 5]
+    layer_strides: [2, 2]
+    num_filters: [64, 128]
+  fusion:
+    use_uav_feature: true          # ✅ 激活 UAV 融合模块
+    uav_fusion_type: add           # 或 concat / cross_attention（需模型实现）
+
+uav:
+  input_channels: 3                # 输入为 RGB 图像
+  encoder:
+    type: CNN                     # 可改为 CNNTransformer 等
+    output_channels: 256
+    pretrained: false
+
+train:
+  batch_size: 4
+  num_workers: 4
+  max_epochs: 40
+  learning_rate: 1e-4
+  weight_decay: 1e-2
+
+log:
+  save_dir: logs/uav_fusion/
+  eval_interval: 1
+
+eval:
+  metric: kitti_ap
+  label_dir: /path/to/kitti/training/label_2
+  eval_output_dir: eval_results/
