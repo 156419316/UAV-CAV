@@ -1,6 +1,22 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision import transforms
+
+class FeatureExtractor(nn.Module):
+    def __init__(self, in_channels, out_size=256):
+        super().__init__()
+        self.resize = nn.AdaptiveAvgPool2d((out_size, out_size))  # 统一到 256x256
+        self.expand_dim = nn.Identity()  # 用于 [C,H,W] → [1,C,H,W]
+
+    def forward(self, x):
+        if x.dim() == 3:  # [C,H,W] → [1,C,H,W]
+            x = x.unsqueeze(0)
+        # 转换数据类型为 float，并归一化到 [0, 1]
+        if x.dtype == torch.uint8:  # 检查是否是 Byte 类型
+            x = x.float() / 255.0
+        x = self.resize(x)
+        return x
 
 # ----------------------------
 # 1. CBAM模块（通道 + 空间注意力）
@@ -58,6 +74,9 @@ class PyramidTransformer(nn.Module):
 class UAVPolicy(nn.Module):
     def __init__(self, grid_size=8, embed_dim=256, in_channels=3):
         super().__init__()
+        
+        self.feature_extractor = FeatureExtractor(in_channels, out_size=256)
+        
         self.grid_size = grid_size
 
         self.cnn_encoder = nn.Sequential(
@@ -74,8 +93,30 @@ class UAVPolicy(nn.Module):
             nn.Flatten(),                # [B, C]
             nn.Linear(embed_dim, 1)     # [B, 1]
         )
+        
+    def apply_mask(self, feature_map, mask):
+        """
+        将策略输出的掩码应用到 UAV 特征图上
+        参数:
+            feature_map: [C, H, W]
+            mask: [grid, grid]
+        返回:
+            masked_feat: [C, H, W]
+        """
+        # 如果输入是 [C, H, W]，需要在第 0 维增加批量维度
+        if feature_map.dim() == 3:
+            feature_map = feature_map.unsqueeze(0)  # [C, H, W] → [1, C, H, W]
+        if mask.dim() == 2:
+            mask = mask.unsqueeze(0)  # [grid, grid] → [1, grid, grid]
+
+        B, C, H, W = feature_map.shape
+        mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=(H, W), mode='nearest')  # [1, 1, H, W]
+        masked_feat = feature_map * mask  # [1, C, H, W]
+
+        return masked_feat.squeeze(0)  # 去掉批量维度，返回 [C, H, W]
 
     def forward(self, x):  # x: [B, C_in, H, W]
+        x = self.feature_extractor(x)
         x = self.cnn_encoder(x)          # [B, C, H, W]
         pooled = self.pool(x)            # [B, C, G, G]
         probs = torch.sigmoid(self.actor(pooled)).flatten(1)  # [B, G*G]

@@ -8,6 +8,7 @@ import sys
 import os
 sys.path.append(os.path.abspath('/home/lancegan/Datas/Codes/Python/P1'))
 from detector.pointpillars.ops.iou3d_module import boxes_overlap_bev, boxes_iou_bev
+from torchvision.ops import nms
 
 
 def setup_seed(seed=0, deterministic = True):
@@ -18,6 +19,44 @@ def setup_seed(seed=0, deterministic = True):
     if deterministic:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+
+
+def anchors2bboxes(anchors, deltas):
+    """
+    解码偏移量为3D边界框
+    anchors: [N, 7]
+    deltas:  [N, 7]
+    return:  [N, 7]
+    """
+    xa, ya, za, la, wa, ha, ra = anchors[:, 0], anchors[:, 1], anchors[:, 2], anchors[:, 3], anchors[:, 4], anchors[:, 5], anchors[:, 6]
+    dx, dy, dz, dl, dw, dh, dr = deltas[:, 0], deltas[:, 1], deltas[:, 2], deltas[:, 3], deltas[:, 4], deltas[:, 5], deltas[:, 6]
+
+    diagonal = torch.sqrt(la**2 + wa**2)
+
+    xg = dx * diagonal + xa
+    yg = dy * diagonal + ya
+    zg = dz * ha + za
+    lg = torch.exp(dl) * la
+    wg = torch.exp(dw) * wa
+    hg = torch.exp(dh) * ha
+    rg = dr + ra
+
+    bboxes = torch.stack([xg, yg, zg, lg, wg, hg, rg], dim=-1)
+    return bboxes
+
+def nms_cuda(boxes, scores, thresh, pre_maxsize=None, post_max_size=None):
+    """
+    执行 NMS 操作
+    参数:
+        boxes: Tensor [N, 5]，格式为 [x1, y1, x2, y2, heading]，仅前4维用于 NMS
+        scores: Tensor [N,]
+        thresh: float，IOU 阈值
+    返回:
+        keep: Tensor，保留的索引
+    """
+    boxes2d = boxes[:, :4]  # 提取 2D 部分用于 NMS
+    keep = nms(boxes2d, scores, thresh)
+    return keep
 
 
 def bbox_camera2lidar(bboxes, tr_velo_to_cam, r0_rect):

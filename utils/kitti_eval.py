@@ -1,11 +1,10 @@
 import os
 import numpy as np
 from collections import defaultdict
-from detector.pointpillars.utils.process import compute_ap, match_boxes
-
+from detector.pointpillars.utils.process import compute_ap, match_boxes  # 根据你的工程路径调整
 
 class KITTIEvaluator:
-    def __init__(self, label_dir, class_names=['Car', 'Pedestrian', 'Cyclist'], iou_thresh=0.5):
+    def __init__(self, label_dir, class_names=['Car', 'Pedestrian', 'Cyclist'], iou_thresh=0.3):
         self.label_dir = label_dir
         self.class_names = class_names
         self.iou_thresh = iou_thresh
@@ -30,19 +29,34 @@ class KITTIEvaluator:
                 name = parts[0]
                 if name not in self.class_names:
                     continue
-                trunc, occ, alpha = float(parts[1]), int(parts[2]), float(parts[3])
-                bbox = list(map(float, parts[4:8]))  # not used here
+                # 2D bbox
+                x1, y1, x2, y2 = map(float, parts[4:8])
+                # 3D bbox
                 h, w, l = map(float, parts[8:11])
                 x, y, z = map(float, parts[11:14])
                 ry = float(parts[14])
                 boxes.append({
                     'name': name,
+                    'bbox': [x1, y1, x2, y2],  # ✅ 添加 2D box
                     'translation': [x, y, z],
                     'size': [w, l, h],
                     'rotation_y': ry
                 })
             gt_dict[token] = boxes
         return gt_dict
+
+
+    def get_gt_dict(self, tokens):
+        """
+        根据 sample_token 列表获取对应 GT 子集，返回格式与 wrap_predictions_for_kitti 一致。
+        """
+        sub_dict = {}
+        for token in tokens:
+            if token in self.gt_dict:
+                sub_dict[token] = self.gt_dict[token]
+            else:
+                sub_dict[token] = []
+        return sub_dict
 
     def evaluate(self, pred_dict):
         """

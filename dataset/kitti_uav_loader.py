@@ -6,6 +6,13 @@ from PIL import Image
 import numpy as np
 
 class KITTILoader(Dataset):
+
+    CLASS = {
+        '0': 'Pedestrian',
+        '1': 'Cyclist',
+        '2': 'Car',
+    }
+    
     def __init__(self, root_dir, split='training', grid_size=8):
         """
         root_dir: KITTI 根路径，如 /path/to/kitti

@@ -2,13 +2,13 @@ import numpy as np
 import os
 import torch
 from torch.utils.data import Dataset
+import cv2
 
 import sys
-BASE = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.dirname(BASE))
+sys.path.append(os.path.abspath('/home/lancegan/Datas/Codes/Python/P1'))
 
-from pointpillars.utils import read_pickle, read_points, bbox_camera2lidar
-from pointpillars.dataset import point_range_filter, data_augment
+from detector.pointpillars.utils import read_pickle, read_points, bbox_camera2lidar
+from detector.pointpillars.dataset import point_range_filter, data_augment
 
 
 class BaseSampler():
@@ -103,6 +103,12 @@ class Kitti(Dataset):
         pts_path = os.path.join(self.data_root, velodyne_path)
         pts = read_points(pts_path)
         
+        # image input
+        image_path = os.path.join(self.data_root, image_info['image_path'])  # 假设 image_info 包含图像路径
+        image = cv2.imread(image_path)  # 使用 OpenCV 读取图像
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转换为 RGB 格式
+        image = image.transpose(2, 0, 1)  # 调整维度顺序为 [C, H, W]
+        
         # calib input: for bbox coordinates transformation between Camera and Lidar.
         # because
         tr_velo_to_cam = calib_info['Tr_velo_to_cam'].astype(np.float32)
@@ -119,8 +125,10 @@ class Kitti(Dataset):
         gt_labels = [self.CLASSES.get(name, -1) for name in annos_name]
         data_dict = {
             'pts': pts,
+            'image': image,
             'gt_bboxes_3d': gt_bboxes_3d,
             'gt_labels': np.array(gt_labels), 
+            'gt_result': annos_info,
             'gt_names': annos_name,
             'difficulty': annos_info['difficulty'],
             'image_info': image_info,
